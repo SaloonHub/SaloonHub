@@ -2,6 +2,9 @@
 // SALON PORTAL — app.js
 // Vanilla JS. No build step. Talks directly to Supabase.
 // ============================================================
+if (!SUPABASE_URL.startsWith("https://") || SUPABASE_URL.includes("xxxxx") || SUPABASE_ANON_KEY.includes("your-long")) {
+  alert("config.js is not set up correctly. Check that SUPABASE_URL starts with https:// and that you pasted your real key, then commit the file on GitHub.");
+}
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentProfile = null;
@@ -121,7 +124,13 @@ async function route() {
   if (!session) { show("auth"); return; }
 
   const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
-  if (error || !profile) { show("auth"); return; }
+  if (error || !profile) {
+    show("auth");
+    document.getElementById("auth-error").textContent =
+      "Logged in, but your profile could not be loaded: " + (error ? error.message : "no profile row found for this user");
+    await supabase.auth.signOut();
+    return;
+  }
   currentProfile = profile;
 
   if (!profile.business_id) {
