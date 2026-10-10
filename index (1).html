@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salon Portal</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===================== AUTH VIEW ===================== -->
+<div id="auth-view" class="center-screen">
+  <div class="card">
+    <div class="lang-toggle">
+      <button onclick="setLocale('en')">EN</button>
+      <button onclick="setLocale('ur')">اردو</button>
+    </div>
+    <h1 data-i18n="app.title">Salon Portal</h1>
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="Email" required />
+      <input type="password" id="login-password" placeholder="Password" required />
+      <button type="submit" data-i18n="auth.login">Log in</button>
+    </form>
+    <p class="switch-line">
+      <span data-i18n="auth.noAccount">Don't have an account?</span>
+      <a href="#" onclick="showSignup();return false;" data-i18n="auth.create">Create one</a>
+    </p>
+
+    <form id="signup-form" class="hidden">
+      <input type="text" id="signup-name" placeholder="Full name" required />
+      <input type="email" id="signup-email" placeholder="Email" required />
+      <input type="tel" id="signup-phone" placeholder="Mobile (03xxxxxxxxx)" required />
+      <input type="password" id="signup-password" placeholder="Password (min 6 chars)" required />
+      <button type="submit" data-i18n="auth.signup">Create account</button>
+    </form>
+    <p class="switch-line hidden" id="back-to-login-line">
+      <a href="#" onclick="showLogin();return false;" data-i18n="auth.backToLogin">Back to login</a>
+    </p>
+    <p id="auth-error" class="error"></p>
+  </div>
+</div>
+
+<!-- ===================== PENDING / ONBOARDING VIEW ===================== -->
+<div id="pending-view" class="center-screen hidden">
+  <div class="card">
+    <h2 data-i18n="pending.title">Almost there</h2>
+    <div id="pending-pick-business">
+      <p data-i18n="pending.pickBusiness">Select your salon to continue:</p>
+      <select id="business-select"></select>
+      <button onclick="submitOnboarding()" data-i18n="pending.continue">Continue</button>
+    </div>
+    <div id="pending-waiting" class="hidden">
+      <p data-i18n="pending.waiting">Your account is waiting for approval from your salon's admin.</p>
+      <button onclick="route()" data-i18n="pending.checkAgain">Check again</button>
+    </div>
+    <button class="link-btn" onclick="signOut()" data-i18n="auth.logout">Log out</button>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP VIEW ===================== -->
+<div id="app-view" class="hidden">
+  <header id="app-header">
+    <div class="brand" data-i18n="app.title">Salon Portal</div>
+    <nav id="app-nav"></nav>
+    <div class="header-right">
+      <select id="locale-select" onchange="setLocale(this.value)">
+        <option value="en">EN</option>
+        <option value="ur">اردو</option>
+      </select>
+      <button class="link-btn" onclick="signOut()" data-i18n="auth.logout">Log out</button>
+    </div>
+  </header>
+  <main id="app-main"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
