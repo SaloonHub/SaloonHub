@@ -5,7 +5,7 @@
 if (!SUPABASE_URL.startsWith("https://") || SUPABASE_URL.includes("xxxxx") || SUPABASE_ANON_KEY.includes("your-long")) {
   alert("config.js is not set up correctly. Check that SUPABASE_URL starts with https:// and that you pasted your real key, then commit the file on GitHub.");
 }
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentProfile = null;
 let currentPage = null;
@@ -96,7 +96,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) { document.getElementById("auth-error").textContent = error.message; return; }
   route();
 });
@@ -107,28 +107,28 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
   const email = document.getElementById("signup-email").value.trim();
   const phone = document.getElementById("signup-phone").value.trim();
   const password = document.getElementById("signup-password").value;
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await db.auth.signUp({ email, password });
   if (error) { document.getElementById("auth-error").textContent = error.message; return; }
   localStorage.setItem("pending_name", full_name);
   localStorage.setItem("pending_phone", phone);
   route();
 });
 
-async function signOut() { await supabase.auth.signOut(); currentProfile = null; route(); }
+async function signOut() { await db.auth.signOut(); currentProfile = null; route(); }
 
 // ---------------------------------------------------------------
 // ROUTER
 // ---------------------------------------------------------------
 async function route() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (!session) { show("auth"); return; }
 
-  const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+  const { data: profile, error } = await db.from("profiles").select("*").eq("id", session.user.id).single();
   if (error || !profile) {
     show("auth");
     document.getElementById("auth-error").textContent =
       "Logged in, but your profile could not be loaded: " + (error ? error.message : "no profile row found for this user");
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     return;
   }
   currentProfile = profile;
@@ -160,7 +160,7 @@ function show(which) {
 }
 
 async function loadBusinessesForSelect() {
-  const { data } = await supabase.from("businesses").select("id,name").eq("status", "active").order("name");
+  const { data } = await db.from("businesses").select("id,name").eq("status", "active").order("name");
   const sel = document.getElementById("business-select");
   sel.innerHTML = (data || []).map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join("");
 }
@@ -170,7 +170,7 @@ async function submitOnboarding() {
   if (!businessId) return;
   const full_name = localStorage.getItem("pending_name") || "";
   const phone = localStorage.getItem("pending_phone") || "";
-  await supabase.from("profiles").update({ business_id: businessId, full_name, phone }).eq("id", currentProfile.id);
+  await db.from("profiles").update({ business_id: businessId, full_name, phone }).eq("id", currentProfile.id);
   localStorage.removeItem("pending_name");
   localStorage.removeItem("pending_phone");
   route();
@@ -219,7 +219,7 @@ async function renderPage(page) {
 // ---------------------------------------------------------------
 async function renderDashboard(main) {
   if (currentProfile.role === "super_admin") {
-    const { data: biz } = await supabase.from("businesses").select("id,status");
+    const { data: biz } = await db.from("businesses").select("id,status");
     const total = (biz || []).length;
     const active = (biz || []).filter(b => b.status === "active").length;
     main.innerHTML = `
@@ -233,10 +233,10 @@ async function renderDashboard(main) {
   const bId = currentProfile.business_id;
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const [{ count: custCount }, { data: waiting }, { data: paidToday }, { count: pendingCount }] = await Promise.all([
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("business_id", bId),
-    supabase.from("queue_entries").select("id").eq("business_id", bId).eq("status", "waiting"),
-    supabase.from("invoices").select("total").eq("business_id", bId).eq("status", "paid").gte("paid_at", todayStart.toISOString()),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("business_id", bId).eq("status", "pending"),
+    db.from("customers").select("id", { count: "exact", head: true }).eq("business_id", bId),
+    db.from("queue_entries").select("id").eq("business_id", bId).eq("status", "waiting"),
+    db.from("invoices").select("total").eq("business_id", bId).eq("status", "paid").gte("paid_at", todayStart.toISOString()),
+    db.from("profiles").select("id", { count: "exact", head: true }).eq("business_id", bId).eq("status", "pending"),
   ]);
   const revenue = (paidToday || []).reduce((s, i) => s + Number(i.total), 0);
   let cards = `
@@ -253,7 +253,7 @@ async function renderDashboard(main) {
 // SUPER ADMIN: BUSINESSES
 // ---------------------------------------------------------------
 async function renderBusinesses(main) {
-  const { data } = await supabase.from("businesses").select("*").order("created_at", { ascending: false });
+  const { data } = await db.from("businesses").select("*").order("created_at", { ascending: false });
   main.innerHTML = `
     <div class="page-title">${t("nav.businesses")}</div>
     <div class="toolbar"><button class="btn" onclick="openBusinessModal()">+ ${t("common.add")}</button></div>
@@ -278,7 +278,7 @@ async function createBusiness() {
   const phone = document.getElementById("biz-phone").value.trim();
   const city = document.getElementById("biz-city").value.trim();
   if (!name) return;
-  await supabase.from("businesses").insert([{ name, phone, city }]);
+  await db.from("businesses").insert([{ name, phone, city }]);
   closeModal(); renderPage("businesses");
 }
 
@@ -286,8 +286,8 @@ async function createBusiness() {
 // ADMIN: TEAM (approve staff, assign roles)
 // ---------------------------------------------------------------
 async function renderTeam(main) {
-  const { data } = await supabase.from("profiles").select("*").eq("business_id", currentProfile.business_id).order("created_at", { ascending: false });
-  const { data: floors } = await supabase.from("floors").select("*").eq("business_id", currentProfile.business_id);
+  const { data } = await db.from("profiles").select("*").eq("business_id", currentProfile.business_id).order("created_at", { ascending: false });
+  const { data: floors } = await db.from("floors").select("*").eq("business_id", currentProfile.business_id);
   cache.floors = floors || [];
   main.innerHTML = `
     <div class="page-title">${t("nav.team")}</div>
@@ -304,12 +304,12 @@ async function renderTeam(main) {
 async function approveTeamMember(id) {
   const role = prompt("Role for this person: admin / cashier / staff", "staff");
   if (!role || !["admin", "cashier", "staff"].includes(role)) return;
-  await supabase.from("profiles").update({ role, status: "active" }).eq("id", id);
+  await db.from("profiles").update({ role, status: "active" }).eq("id", id);
   renderPage("team");
 }
 async function suspendTeamMember(id, currentStatus) {
   const newStatus = currentStatus === "suspended" ? "active" : "suspended";
-  await supabase.from("profiles").update({ status: newStatus }).eq("id", id);
+  await db.from("profiles").update({ status: newStatus }).eq("id", id);
   renderPage("team");
 }
 
@@ -317,7 +317,7 @@ async function suspendTeamMember(id, currentStatus) {
 // CUSTOMERS
 // ---------------------------------------------------------------
 async function renderCustomers(main, searchTerm = "") {
-  let q = supabase.from("customers").select("*").eq("business_id", currentProfile.business_id).order("created_at", { ascending: false });
+  let q = db.from("customers").select("*").eq("business_id", currentProfile.business_id).order("created_at", { ascending: false });
   if (searchTerm) q = q.or(`full_name.ilike.%${searchTerm}%,mobile.ilike.%${searchTerm}%`);
   const { data } = await q;
   main.innerHTML = `
@@ -349,7 +349,7 @@ async function createCustomer() {
   const mobile = document.getElementById("c-mobile").value.trim();
   const notes = document.getElementById("c-notes").value.trim();
   if (!full_name || !mobile) return;
-  const { error } = await supabase.from("customers").insert([{ business_id: currentProfile.business_id, full_name, mobile, notes }]);
+  const { error } = await db.from("customers").insert([{ business_id: currentProfile.business_id, full_name, mobile, notes }]);
   if (error) { alert(error.message); return; }
   closeModal(); renderPage("customers");
 }
@@ -358,7 +358,7 @@ async function createCustomer() {
 // SERVICES (admin)
 // ---------------------------------------------------------------
 async function renderServices(main) {
-  const { data } = await supabase.from("services").select("*").eq("business_id", currentProfile.business_id).order("name_en");
+  const { data } = await db.from("services").select("*").eq("business_id", currentProfile.business_id).order("name_en");
   main.innerHTML = `
     <div class="page-title">${t("nav.services")}</div>
     <div class="toolbar"><button class="btn" onclick="openServiceModal()">+ ${t("common.add")}</button></div>
@@ -387,7 +387,7 @@ async function createService() {
   const duration_minutes = Number(document.getElementById("s-duration").value) || 30;
   const commission_pct = Number(document.getElementById("s-commission").value) || 0;
   if (!name_en) return;
-  await supabase.from("services").insert([{ business_id: currentProfile.business_id, name_en, name_ur, price, duration_minutes, commission_pct }]);
+  await db.from("services").insert([{ business_id: currentProfile.business_id, name_en, name_ur, price, duration_minutes, commission_pct }]);
   closeModal(); renderPage("services");
 }
 
@@ -397,10 +397,10 @@ async function createService() {
 async function renderQueue(main) {
   const bId = currentProfile.business_id;
   const [{ data: entries }, { data: customers }, { data: services }] = await Promise.all([
-    supabase.from("queue_entries").select("*, customers(full_name), services(name_en, name_ur), profiles!queue_entries_assigned_staff_id_fkey(full_name)")
+    db.from("queue_entries").select("*, customers(full_name), services(name_en, name_ur), profiles!queue_entries_assigned_staff_id_fkey(full_name)")
       .eq("business_id", bId).neq("status", "cancelled").order("created_at"),
-    supabase.from("customers").select("id, full_name, mobile").eq("business_id", bId).order("full_name"),
-    supabase.from("services").select("id, name_en, name_ur, price").eq("business_id", bId).eq("active", true).order("name_en"),
+    db.from("customers").select("id, full_name, mobile").eq("business_id", bId).order("full_name"),
+    db.from("services").select("id, name_en, name_ur, price").eq("business_id", bId).eq("active", true).order("name_en"),
   ]);
   cache.customers = customers || []; cache.services = services || [];
   const cols = ["waiting", "in_process", "completed"];
@@ -452,21 +452,21 @@ async function createWalkin() {
   const service_id = document.getElementById("w-service").value;
   const notes = document.getElementById("w-notes").value.trim();
   if (!customer_id || !service_id) { alert("Pick a customer and a service."); return; }
-  await supabase.from("queue_entries").insert([{
+  await db.from("queue_entries").insert([{
     business_id: currentProfile.business_id, customer_id, service_id, notes,
     status: "waiting", created_by: currentProfile.id,
   }]);
   closeModal(); renderPage("queue");
 }
 async function startQueueEntry(id) {
-  await supabase.from("queue_entries").update({
+  await db.from("queue_entries").update({
     status: "in_process", started_at: new Date().toISOString(),
     assigned_staff_id: currentProfile.role === "staff" ? currentProfile.id : undefined,
   }).eq("id", id);
   renderPage("queue");
 }
 async function completeQueueEntry(id) {
-  await supabase.from("queue_entries").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", id);
+  await db.from("queue_entries").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", id);
   renderPage("queue");
 }
 
@@ -475,14 +475,14 @@ async function completeQueueEntry(id) {
 // ---------------------------------------------------------------
 async function renderBilling(main) {
   const bId = currentProfile.business_id;
-  const { data: completed } = await supabase.from("queue_entries")
+  const { data: completed } = await db.from("queue_entries")
     .select("*, customers(full_name), services(name_en, price)")
     .eq("business_id", bId).eq("status", "completed").order("completed_at", { ascending: false });
-  const { data: invoiced } = await supabase.from("invoices").select("queue_entry_id").eq("business_id", bId);
+  const { data: invoiced } = await db.from("invoices").select("queue_entry_id").eq("business_id", bId);
   const invoicedIds = new Set((invoiced || []).map(i => i.queue_entry_id));
   const toBill = (completed || []).filter(e => !invoicedIds.has(e.id));
 
-  const { data: unpaidInvoices } = await supabase.from("invoices")
+  const { data: unpaidInvoices } = await db.from("invoices")
     .select("*, customers(full_name)").eq("business_id", bId).eq("status", "unpaid").order("created_at", { ascending: false });
 
   main.innerHTML = `
@@ -513,7 +513,7 @@ function generateBill(queue_entry_id, customer_id, price) {
 async function saveInvoice(queue_entry_id, customer_id, price) {
   const discount = Number(document.getElementById("b-discount").value) || 0;
   const total = Math.max(price - discount, 0);
-  const { data, error } = await supabase.from("invoices").insert([{
+  const { data, error } = await db.from("invoices").insert([{
     business_id: currentProfile.business_id, queue_entry_id, customer_id,
     subtotal: price, discount, total, status: "unpaid", created_by: currentProfile.id,
   }]).select().single();
@@ -536,12 +536,12 @@ function openPaymentModal(invoiceId, total) {
 async function takePayment(invoiceId) {
   const method = document.getElementById("p-method").value;
   const amount = Number(document.getElementById("p-amount").value) || 0;
-  await supabase.from("payments").insert([{ invoice_id: invoiceId, method, amount, received_by: currentProfile.id }]);
-  const { data: inv } = await supabase.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", invoiceId).select().single();
+  await db.from("payments").insert([{ invoice_id: invoiceId, method, amount, received_by: currentProfile.id }]);
+  const { data: inv } = await db.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", invoiceId).select().single();
   if (inv) {
-    const { data: cust } = await supabase.from("customers").select("total_visits,total_spent").eq("id", inv.customer_id).single();
+    const { data: cust } = await db.from("customers").select("total_visits,total_spent").eq("id", inv.customer_id).single();
     if (cust) {
-      await supabase.from("customers").update({
+      await db.from("customers").update({
         total_visits: (cust.total_visits || 0) + 1,
         total_spent: Number(cust.total_spent || 0) + Number(inv.total),
         last_visit_at: new Date().toISOString(),
@@ -558,7 +558,7 @@ async function renderAttendance(main) {
   const bId = currentProfile.business_id;
   if (currentProfile.role === "staff") {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const { data: open } = await supabase.from("attendance").select("*").eq("staff_id", currentProfile.id)
+    const { data: open } = await db.from("attendance").select("*").eq("staff_id", currentProfile.id)
       .gte("check_in_at", todayStart.toISOString()).is("check_out_at", null).maybeSingle();
     main.innerHTML = `
       <div class="page-title">${t("nav.attendance")}</div>
@@ -567,7 +567,7 @@ async function renderAttendance(main) {
         : `<button class="btn" onclick="checkIn()">${t('attendance.checkIn')}</button>`}`;
     return;
   }
-  const { data } = await supabase.from("attendance").select("*, profiles(full_name)").eq("business_id", bId).order("check_in_at", { ascending: false }).limit(50);
+  const { data } = await db.from("attendance").select("*, profiles(full_name)").eq("business_id", bId).order("check_in_at", { ascending: false }).limit(50);
   main.innerHTML = `
     <div class="page-title">${t("nav.attendance")}</div>
     <table><thead><tr><th>${t("common.name")}</th><th>Check In</th><th>Check Out</th></tr></thead>
@@ -576,11 +576,11 @@ async function renderAttendance(main) {
       <td>${a.check_out_at ? new Date(a.check_out_at).toLocaleString() : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
 async function checkIn() {
-  await supabase.from("attendance").insert([{ business_id: currentProfile.business_id, staff_id: currentProfile.id }]);
+  await db.from("attendance").insert([{ business_id: currentProfile.business_id, staff_id: currentProfile.id }]);
   renderPage("attendance");
 }
 async function checkOut(id) {
-  await supabase.from("attendance").update({ check_out_at: new Date().toISOString() }).eq("id", id);
+  await db.from("attendance").update({ check_out_at: new Date().toISOString() }).eq("id", id);
   renderPage("attendance");
 }
 
@@ -590,10 +590,10 @@ async function checkOut(id) {
 async function renderCash(main) {
   const bId = currentProfile.business_id;
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const { data: cashPayments } = await supabase.from("payments").select("amount, invoices!inner(business_id)")
+  const { data: cashPayments } = await db.from("payments").select("amount, invoices!inner(business_id)")
     .eq("method", "cash").eq("invoices.business_id", bId).gte("received_at", todayStart.toISOString());
   const expected = (cashPayments || []).reduce((s, p) => s + Number(p.amount), 0);
-  const { data: history } = await supabase.from("cash_reconciliations").select("*, profiles(full_name)").eq("business_id", bId).order("created_at", { ascending: false }).limit(20);
+  const { data: history } = await db.from("cash_reconciliations").select("*, profiles(full_name)").eq("business_id", bId).order("created_at", { ascending: false }).limit(20);
   main.innerHTML = `
     <div class="page-title">${t("nav.cash")}</div>
     <div class="card" style="max-width:420px;margin:0 0 20px;">
@@ -613,7 +613,7 @@ async function submitReconciliation(expected) {
   const actual_cash = Number(document.getElementById("cr-actual").value) || 0;
   const notes = document.getElementById("cr-notes").value.trim();
   const difference = actual_cash - expected;
-  await supabase.from("cash_reconciliations").insert([{
+  await db.from("cash_reconciliations").insert([{
     business_id: currentProfile.business_id, cashier_id: currentProfile.id,
     opening_cash, expected_cash: expected, actual_cash, difference, notes,
   }]);
